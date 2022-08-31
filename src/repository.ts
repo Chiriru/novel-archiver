@@ -4,15 +4,16 @@ import { resolve } from "path";
 import { NovelRepository, wrapNovel, wrapNovelMetadata, wrapChapter, OnlineNovelMetadata } from "./entities";
 
 const NOVEL_STORAGE_PATH = resolve(__dirname, "./novels/");
-console.log(NOVEL_STORAGE_PATH);
 const METADATA_FILENAME = "meta.json";
 const COVER_IMAGE_FILENAME = "cover.png";
 
+if (!existsSync(NOVEL_STORAGE_PATH)) mkdirSync(NOVEL_STORAGE_PATH);
 
 const novelPath = (novelTitle: string) => resolve(NOVEL_STORAGE_PATH, sanitize(novelTitle));
 const novelFile = (novelTitle: string, filename: string) => resolve(novelPath(novelTitle), sanitize(filename));
 const novelIsArchived = (novelTitle: string) => existsSync(novelPath(novelTitle));
 const novelHasFile = (novelTitle: string, filename: string) => existsSync(novelFile(novelTitle, filename));
+
 
 export const FsRepository: NovelRepository = {
   loadArchivedNovel: function (novelTitle) {
