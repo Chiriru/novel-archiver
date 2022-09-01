@@ -1,26 +1,23 @@
 import axios from "axios";
-import c from "cheerio";
-import validate from "validator";
-import prettify from "pretty";
-import { OnlineNovelMetadata, wrapOnlineNovelMetadata, wrapChapter } from "./entities";
-import { createSectionHtml, createEpub, wrapSection, wrapContent, wrapImage, wrapCover, wrapEpub, writeEpub } from "./epub-maker/app";
+import { parsers } from "./parsers";
+import { OnlineNovelMetadata } from "./entities";
+import { createSectionHtml, createEpub, wrapSection, wrapContent, wrapImage, wrapCover, wrapEpub } from "./epub-maker/app";
 import { FsRepository } from "./repository";
 
-const ACCEPTED_PAGES = [
-  "www.readlightnovel.me",
-  "readlightnovel.me",
-  "www.readlightnovel.com",
-  "readlightnovel.com"
-]
-// THis selector should be able to get all the <a> elements with an "href" attribute that link to every chapter's page
-const CHAPTER_LIST_SELECTOR = ".tab-content div ul li a";
-const CONTENT_SELECTOR = "div.desc #chapterhidden";
-const INDEX_TITLE_SELECTOR = "div.block-title h1";
-// Extracts it from the breadcrumbs shown at the top of the page
-const CHAPTER_TITLE_SELECTOR = ".breadcrumb-item.active";
-const NOVEL_IMG_SELECTOR = ".novel-cover a img";
+const validateNovelUrl = (novelUrl: string) => {
+  try {
+    new URL(novelUrl);
+    return true;
+  } catch (err) {
+    return false;
+  }
+};
+const getParserFromUrl = (novelUrl: string) => {
+  if (!validateNovelUrl(novelUrl)) return undefined;
 
-const validateNovelUrl = (novelUrl: string) => validate.isURL(novelUrl, { host_whitelist: ACCEPTED_PAGES });
+  const parsedUrl = new URL(novelUrl);
+  return parsers.find((parser) => parser.validateUrl(parsedUrl));
+};
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const log = (text: string, shouldLog: boolean = true) => {
 
@@ -29,42 +26,25 @@ const log = (text: string, shouldLog: boolean = true) => {
 
 const getChapter = async (link: string, pretty: boolean = true) => {
 
+  const parser = getParserFromUrl(link);
+  if (!parser) throw new Error("Invalid URL");
+
   const response = (await axios.get(link)).data;
-  const body = c.load(response);
-  // alternate way, chose converting the whole body because i still have to get the title
-  // const test = c.load(response);
-  // console.log(c.load(test(CONTENT_SELECTOR).html() || "", {}, false).xml())
-  const cleanBody = c.load(body.xml(), { xmlMode: true });
-  // Chapter number Ex: Chapter 12
-  const chapter_title = cleanBody(CHAPTER_TITLE_SELECTOR).text();
-
-  // I have to reparse the whole thing to be able to convert HTML's <br> into XHTML's <br/>..... this is so fucking dumb
-  const content = cleanBody(CONTENT_SELECTOR).html() || "";
-  const data = createSectionHtml(chapter_title, content);
-  const filename = `${chapter_title}.xhtml`;
-
-  return wrapChapter(filename, chapter_title, pretty ? prettify(data) : data);
+  return parser.parseChapter(response, pretty);
 }
 export const getNovelMetadata = async (novelIndexUrl: string) => {
-  if (!validateNovelUrl(novelIndexUrl)) throw new Error("Invalid novel Url. Use an url that points to the index page of a novel in readlightnovel.me");
+  const parser = getParserFromUrl(novelIndexUrl);
+  if (!parser) throw new Error("Invalid novel URL");
 
   const response = await axios.get(novelIndexUrl);
-  const body = c.load(response.data);
-
-  const title = body(INDEX_TITLE_SELECTOR).text();
-  const coverImageUrl = body(NOVEL_IMG_SELECTOR).attr("src") || "";
-  const coverImage = Buffer.from((await axios.get(coverImageUrl, { responseType: "arraybuffer" })).data);
-
-  const chapterList = body(CHAPTER_LIST_SELECTOR).get().map(el => body(el).attr("href") || "").filter(el => el);
-  if (!chapterList) throw new Error("No chapters found")
-
-  return wrapOnlineNovelMetadata(title, coverImage, chapterList);
+  return parser.parseNovelMetadata(response.data);
 }
 
 export const archiveChapters = async ({ title, chapterLinks }: OnlineNovelMetadata, delay: number = 1000, logging: boolean = true) => {
 
   log(`Archiving ${title}'s ${chapterLinks.length} chapters`, logging);
   const indexChapterPairs: [number, string][] = chapterLinks.map((value, index) => [index, value]);
+
   for (const [index, link] of indexChapterPairs) {
     const chapter = await getChapter(link);
     FsRepository.saveChapter(title, chapter);
@@ -75,7 +55,6 @@ export const archiveChapters = async ({ title, chapterLinks }: OnlineNovelMetada
     await wait(delay);
   }
 }
-
 export const archiveNovel = async (novelIndexUrl: string, logging: boolean = true) => {
   const metadata = await getNovelMetadata(novelIndexUrl);
 
@@ -104,8 +83,6 @@ export const convertNovelToEpub = (novelTitle: string, author: string = "vVanish
   return FsRepository.saveFile(novelTitle, `${novelTitle}.epub`, file)
 }
 
-
-// const url = "https://www.readlightnovel.me/i-am-the-last-villainess-he-has-to-kill";
 
 // getNovelMetadata(url).then(meta => {
 //   archiveNovel(url)

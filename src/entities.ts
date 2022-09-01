@@ -22,6 +22,12 @@ export interface Novel<T extends string | ReadStream> {
   chapters: Chapter<T>[],
   cover: Buffer
 }
+export interface Parser {
+  // Its a promise because it has to get the novel's cover image separately
+  parseNovelMetadata: (html: string) => Promise<OnlineNovelMetadata>
+  parseChapter: (html: string, pretty?: boolean) => Chapter<string>,
+  validateUrl: (maybeUrl: URL) => boolean
+}
 
 // A dream... too good to be true....
 // const wrap = <T extends object>(...obj: [T[keyof T]]) => { ...obj };
