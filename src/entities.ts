@@ -26,7 +26,7 @@ export interface Parser {
   // Its a promise because it has to get the novel's cover image separately
   parseNovelMetadata: (html: string) => Promise<OnlineNovelMetadata>
   parseChapter: (html: string, pretty?: boolean) => Chapter<string>,
-  validateUrl: (maybeUrl: URL) => boolean
+  validateUrl: (maybeUrl: URL) => boolean,
 }
 
 // A dream... too good to be true....

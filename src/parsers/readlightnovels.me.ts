@@ -34,7 +34,7 @@ const INDEX_TITLE_SELECTOR = "div.block-title h1";
 const CHAPTER_TITLE_SELECTOR = ".breadcrumb-item.active";
 const NOVEL_IMG_SELECTOR = ".novel-cover a img";
 
-const parser: Parser = {
+export const parser: Parser = {
   parseNovelMetadata: async (html: string) => {
     const body = c.load(html);
   
@@ -68,4 +68,3 @@ const parser: Parser = {
     return ACCEPTED_HOSTS.includes(hostname) && !BLOCKED_PATHNAMES.some(blockedPath => pathname.startsWith(blockedPath.toLowerCase()));
   }
 }
-export default parser;

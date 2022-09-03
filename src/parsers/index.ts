@@ -1,7 +1,8 @@
-import { Parser } from "../entities";
-import readlightnovel from "./readlightnovel";
+import { parser as readlightnovel } from "./readlightnovels.me";
+import { parser as lightnovels } from "./lightnovels.me";
 
 
 export const parsers = [
-  readlightnovel
+  readlightnovel,
+  lightnovels
 ]
