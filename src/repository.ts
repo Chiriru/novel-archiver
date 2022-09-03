@@ -4,6 +4,7 @@ import { resolve } from "path";
 import { NovelRepository, wrapNovel, wrapNovelMetadata, wrapChapter, OnlineNovelMetadata } from "./entities";
 
 const NOVEL_STORAGE_PATH = resolve(__dirname, "./novels/");
+const TEXT_PATH = "./text/";
 const METADATA_FILENAME = "meta.json";
 const COVER_IMAGE_FILENAME = "cover.png";
 
@@ -13,6 +14,10 @@ const novelPath = (novelTitle: string) => resolve(NOVEL_STORAGE_PATH, sanitize(n
 const novelFile = (novelTitle: string, filename: string) => resolve(novelPath(novelTitle), sanitize(filename));
 const novelIsArchived = (novelTitle: string) => existsSync(novelPath(novelTitle));
 const novelHasFile = (novelTitle: string, filename: string) => existsSync(novelFile(novelTitle, filename));
+
+const textFolder = (novelTitle: string) => resolve(novelPath(novelTitle), TEXT_PATH);
+const textFile = (novelTitle: string, filename: string) => resolve(textFolder(novelTitle), sanitize(filename));
+const textHasFile = (novelTitle: string, filename: string) => existsSync(textFile(novelTitle, filename));
 
 
 export const FsRepository: NovelRepository = {
@@ -53,9 +58,9 @@ export const FsRepository: NovelRepository = {
 
     // First get read of the files that are not actually on the folder, and then read the ones that actually are there
     const chapterStreams = Object.entries(archivedChapters)
-      .filter(([title, filename]) => novelHasFile(novelTitle, filename))
+      .filter(([title, filename]) => textHasFile(novelTitle, filename))
       .map(([title, filename]) => {
-        const path = novelFile(novelTitle, filename);
+        const path = textFile(novelTitle, filename);
         const data = createReadStream(path);
         return wrapChapter(filename, title, data);
       });
@@ -80,7 +85,7 @@ export const FsRepository: NovelRepository = {
     });
   },
   saveChapter: function (novelTitle, chapter) {
-    this.saveFile(novelTitle, chapter.filename, chapter.data);
+    writeFileSync(textFile(novelTitle, chapter.filename), chapter.data);
 
     // Updates the archived chapters in the novel's metadata
     const metadata = this.loadArchivedMetadata(novelTitle);
@@ -88,7 +93,7 @@ export const FsRepository: NovelRepository = {
     this.saveMetadata(novelTitle, metadata);
   },
   saveMetadata: function (novelTitle, metadata) {
-    const json = JSON.stringify(metadata);
+    const json = JSON.stringify(metadata, undefined, 2);
     this.saveFile(novelTitle, METADATA_FILENAME, json);
   },
   createNovel: function ({ title, chapterLinks, cover }: OnlineNovelMetadata, deleteExisting: boolean = false) {
@@ -100,13 +105,18 @@ export const FsRepository: NovelRepository = {
     }
 
     mkdirSync(novelPath(title));
-    writeFileSync(novelFile(title, COVER_IMAGE_FILENAME), cover);
+    mkdirSync(textFolder(title));
+    this.saveFile(title, COVER_IMAGE_FILENAME, cover);
     const metaJson = JSON.stringify(wrapNovelMetadata(COVER_IMAGE_FILENAME, {}, chapterLinks));
-    writeFileSync(novelFile(title, METADATA_FILENAME), metaJson);
+    this.saveFile(title, METADATA_FILENAME, metaJson);
   },
   deleteNovel: function (novelTitle) {
     if (!novelIsArchived(novelTitle))
       throw new Error("Novel is not archived");
+
+    const textFiles = readdirSync(textFolder(novelTitle));
+    textFiles.forEach(filename => rmSync(textFolder(novelTitle)));
+    rmdirSync(textFolder(novelTitle));
 
     const files = readdirSync(novelPath(novelTitle));
     files.forEach(filename => rmSync(novelFile(novelTitle, filename)));
